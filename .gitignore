@@ -1,0 +1,15 @@
+node_modules/
+dist/
+
+# Test run artifacts (stored in /tmp)
+playwright-report/
+test-results/
+
+# Secrets — never commit
+secrets/
+
+# Local env overrides
+.env
+
+# Playwright cache
+.playwright/

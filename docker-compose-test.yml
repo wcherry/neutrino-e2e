@@ -1,0 +1,266 @@
+version: "3.9"
+
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  worker_secret:
+    file: ./secrets/worker_secret.txt
+  anthropic_api_key:
+    file: ./secrets/anthropic_api_key.txt
+
+networks:
+  neutrino-test:
+    driver: bridge
+
+services:
+  web:
+    image: neutrino-web:test
+    container_name: neutrino-web-test
+    depends_on:
+      auth:
+        condition: service_healthy
+      drive:
+        condition: service_healthy
+      docs:
+        condition: service_healthy
+      sheets:
+        condition: service_healthy
+      slides:
+        condition: service_healthy
+      photos:
+        condition: service_healthy
+    ports:
+      - "9880:8080"
+    volumes:
+      - ./nginx/neutrino-proxy-test.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  auth:
+    image: neutrino-auth:test
+    container_name: neutrino-auth-test
+    secrets:
+      - jwt_secret
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      JWT_ACCESS_EXPIRY_SECS: 900
+      JWT_REFRESH_EXPIRY_SECS: 604800
+      AUTH_DATABASE_URL: /usr/local/data/auth.db
+      AUTH_PORT: 8080
+      LOG_PATH: /usr/local/logs/
+      LOG_LEVEL: debug
+    volumes:
+      - ${RUN_DIR}/data/auth:/usr/local/data
+      - ${RUN_DIR}/service-logs/auth:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  drive:
+    image: neutrino-drive:test
+    container_name: neutrino-drive-test
+    depends_on:
+      auth:
+        condition: service_healthy
+    secrets:
+      - jwt_secret
+      - worker_secret
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      WORKER_SECRET: /run/secrets/worker_secret
+      JWT_ACCESS_EXPIRY_SECS: 900
+      JWT_REFRESH_EXPIRY_SECS: 604800
+      LOG_LEVEL: debug
+      AUTH_URL: http://auth:8080
+      DRIVE_DATABASE_URL: /usr/local/data/drive.db
+      DRIVE_PORT: 8080
+      STORAGE_PATH: /usr/local/data/storage
+      LOG_PATH: /usr/local/logs/
+    volumes:
+      - ${RUN_DIR}/data/drive:/usr/local/data
+      - ${RUN_DIR}/service-logs/drive:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  docs:
+    image: neutrino-docs:test
+    container_name: neutrino-docs-test
+    depends_on:
+      drive:
+        condition: service_healthy
+    secrets:
+      - jwt_secret
+      - worker_secret
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      WORKER_SECRET: /run/secrets/worker_secret
+      JWT_ACCESS_EXPIRY_SECS: 900
+      JWT_REFRESH_EXPIRY_SECS: 604800
+      LOG_LEVEL: debug
+      AUTH_URL: http://auth:8080
+      DRIVE_URL: http://drive:8080
+      DOCS_DATABASE_URL: /usr/local/data/docs.db
+      DOCS_PORT: 8080
+      LOG_PATH: /usr/local/logs/
+    volumes:
+      - ${RUN_DIR}/data/docs:/usr/local/data
+      - ${RUN_DIR}/service-logs/docs:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  sheets:
+    image: neutrino-sheets:test
+    container_name: neutrino-sheets-test
+    depends_on:
+      drive:
+        condition: service_healthy
+    secrets:
+      - jwt_secret
+      - worker_secret
+      - anthropic_api_key
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      WORKER_SECRET: /run/secrets/worker_secret
+      ANTHROPIC_API_KEY: /run/secrets/anthropic_api_key
+      JWT_ACCESS_EXPIRY_SECS: 900
+      JWT_REFRESH_EXPIRY_SECS: 604800
+      LOG_LEVEL: debug
+      AUTH_URL: http://auth:8080
+      DRIVE_URL: http://drive:8080
+      SHEETS_DATABASE_URL: /usr/local/data/sheets.db
+      SHEETS_PORT: 8080
+      LOG_PATH: /usr/local/logs/
+    volumes:
+      - ${RUN_DIR}/data/sheets:/usr/local/data
+      - ${RUN_DIR}/service-logs/sheets:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  slides:
+    image: neutrino-slides:test
+    container_name: neutrino-slides-test
+    depends_on:
+      drive:
+        condition: service_healthy
+    secrets:
+      - jwt_secret
+      - worker_secret
+      - anthropic_api_key
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      WORKER_SECRET: /run/secrets/worker_secret
+      ANTHROPIC_API_KEY: /run/secrets/anthropic_api_key
+      JWT_ACCESS_EXPIRY_SECS: 900
+      JWT_REFRESH_EXPIRY_SECS: 604800
+      LOG_LEVEL: debug
+      AUTH_URL: http://auth:8080
+      DRIVE_URL: http://drive:8080
+      SLIDES_DATABASE_URL: /usr/local/data/slides.db
+      SLIDES_PORT: 8080
+      LOG_PATH: /usr/local/logs/
+    volumes:
+      - ${RUN_DIR}/data/slides:/usr/local/data
+      - ${RUN_DIR}/service-logs/slides:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  photos:
+    image: neutrino-photos:test
+    container_name: neutrino-photos-test
+    depends_on:
+      drive:
+        condition: service_healthy
+    secrets:
+      - jwt_secret
+      - worker_secret
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      WORKER_SECRET: /run/secrets/worker_secret
+      JWT_ACCESS_EXPIRY_SECS: 900
+      JWT_REFRESH_EXPIRY_SECS: 604800
+      LOG_LEVEL: debug
+      AUTH_URL: http://auth:8080
+      DRIVE_URL: http://drive:8080
+      PHOTOS_DATABASE_URL: /usr/local/data/photos.db
+      PHOTOS_PORT: 8080
+      LOG_PATH: /usr/local/logs/
+    volumes:
+      - ${RUN_DIR}/data/photos:/usr/local/data
+      - ${RUN_DIR}/service-logs/photos:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  worker:
+    image: neutrino-worker:test
+    container_name: neutrino-worker-test
+    depends_on:
+      drive:
+        condition: service_healthy
+    secrets:
+      - jwt_secret
+      - worker_secret
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      WORKER_SECRET: /run/secrets/worker_secret
+      LOG_LEVEL: debug
+      AUTH_URL: http://auth:8080
+      PHOTO_URL: http://photos:8080
+      DRIVE_URL: http://drive:8080
+      WORKER_DATABASE_URL: /usr/local/data/workers.db
+      WORKER_PORT: 8080
+      LOG_PATH: /usr/local/logs/
+      FACE_DETECT_MODEL_PATH: /usr/local/models/det_10g.onnx
+      FACE_RECOGNITION_MODEL_PATH: /usr/local/models/w600k_r50.onnx
+      WORKER_CALLBACK_URL: http://worker:8080/dispatch
+    volumes:
+      - ${RUN_DIR}/data/workers:/usr/local/data
+      - ${RUN_DIR}/service-logs/workers:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
