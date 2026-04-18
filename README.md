@@ -38,6 +38,26 @@ This will:
 3. Run all Playwright tests
 4. Save all artifacts and tear down the stack
 
+### Build a single service image
+
+To rebuild only one service without touching the others:
+
+```bash
+docker build --no-cache -t neutrino-<svc>:test ../neutrino-<svc>
+```
+
+For example, to rebuild just the `auth` service:
+
+```bash
+docker build --no-cache -t neutrino-auth:test ../neutrino-auth
+```
+
+Then use `--skip-build` when running tests so the rest of the images are reused as-is:
+
+```bash
+./scripts/run-tests.sh --skip-build
+```
+
 ### Skip image rebuild
 
 Reuse existing `:test` images when iterating on tests:
@@ -72,7 +92,7 @@ Run artifacts saved to: /tmp/neutrino-e2e/20260328_120000_abc123de
 Open the HTML report:
 
 ```bash
-npx playwright show-report /tmp/neutrino-e2e/<run-id>/playwright-results/html
+npx playwright show-report /tmp/neutrino-e2e/<run-id>/playwright-report
 ```
 
 ## Artifact layout
@@ -94,9 +114,8 @@ Every run produces a self-contained directory under `/tmp/neutrino-e2e/<run-id>/
 │   ├── auth.log            # Docker stdout/stderr captured at teardown
 │   └── ...
 ├── browser-logs/           # Console messages + network log per test (JSON)
-└── playwright-results/
-    ├── html/               # HTML report (open with show-report)
-    └── ...                 # Traces, screenshots, videos
+├── playwright-artifacts/   # Traces, screenshots, videos (outputDir)
+└── playwright-report/      # HTML report (open with show-report)
 ```
 
 ## Image strategy

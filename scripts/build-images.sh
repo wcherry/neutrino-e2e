@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PARENT_DIR="$(cd "${REPO_ROOT}/.." && pwd)"
 
-GHCR_OWNER="${GHCR_OWNER:-williamcherry}"
+GHCR_OWNER="${GHCR_OWNER:-wcherry}"
 SKIP_BUILD=false
 
 for arg in "$@"; do
@@ -19,7 +19,7 @@ if [ "$SKIP_BUILD" = "true" ]; then
   exit 0
 fi
 
-SERVICES=(auth drive docs sheets slides photos worker web)
+SERVICES=(auth drive docs sheets slides photos notes calendar worker web)
 
 for SERVICE in "${SERVICES[@]}"; do
   IMAGE="neutrino-${SERVICE}:test"

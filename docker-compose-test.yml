@@ -29,6 +29,10 @@ services:
         condition: service_healthy
       photos:
         condition: service_healthy
+      notes:
+        condition: service_healthy
+      calendar:
+        condition: service_healthy
     ports:
       - "9880:8080"
     volumes:
@@ -222,6 +226,65 @@ services:
     volumes:
       - ${RUN_DIR}/data/photos:/usr/local/data
       - ${RUN_DIR}/service-logs/photos:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  notes:
+    image: neutrino-notes:test
+    container_name: neutrino-notes-test
+    depends_on:
+      drive:
+        condition: service_healthy
+    secrets:
+      - jwt_secret
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      JWT_ACCESS_EXPIRY_SECS: 900
+      JWT_REFRESH_EXPIRY_SECS: 604800
+      LOG_LEVEL: debug
+      AUTH_URL: http://auth:8080
+      DRIVE_URL: http://drive:8080
+      NOTES_DATABASE_URL: /usr/local/data/notes.db
+      NOTES_PORT: 8080
+      LOG_PATH: /usr/local/logs/
+    volumes:
+      - ${RUN_DIR}/data/notes:/usr/local/data
+      - ${RUN_DIR}/service-logs/notes:/usr/local/logs
+    networks:
+      - neutrino-test
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  calendar:
+    image: neutrino-calendar:test
+    container_name: neutrino-calendar-test
+    depends_on:
+      auth:
+        condition: service_healthy
+    secrets:
+      - jwt_secret
+    environment:
+      JWT_SECRET: /run/secrets/jwt_secret
+      JWT_ACCESS_EXPIRY_SECS: 900
+      JWT_REFRESH_EXPIRY_SECS: 604800
+      LOG_LEVEL: debug
+      AUTH_URL: http://auth:8080
+      CALENDAR_DATABASE_URL: /usr/local/data/calendar.db
+      CALENDAR_PORT: 8080
+      LOG_PATH: /usr/local/logs/
+    volumes:
+      - ${RUN_DIR}/data/calendar:/usr/local/data
+      - ${RUN_DIR}/service-logs/calendar:/usr/local/logs
     networks:
       - neutrino-test
     healthcheck:

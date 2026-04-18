@@ -5,7 +5,7 @@ const runDir = process.env.RUN_DIR ?? '/tmp/neutrino-e2e/default';
 
 export default defineConfig({
   testDir: './tests',
-  outputDir: path.join(runDir, 'playwright-results'),
+  outputDir: path.join(runDir, 'playwright-artifacts'),
 
   // Run tests serially — all tests share a single Docker stack
   workers: 1,
@@ -16,7 +16,7 @@ export default defineConfig({
 
   reporter: [
     ['list'],
-    ['html', { outputFolder: path.join(runDir, 'playwright-results', 'html'), open: 'never' }],
+    ['html', { outputFolder: path.join(runDir, 'playwright-report'), open: 'never' }],
   ],
 
   use: {

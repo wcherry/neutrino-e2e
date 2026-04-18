@@ -29,6 +29,8 @@ mkdir -p \
   "${RUN_DIR}/data/sheets" \
   "${RUN_DIR}/data/slides" \
   "${RUN_DIR}/data/photos" \
+  "${RUN_DIR}/data/notes" \
+  "${RUN_DIR}/data/calendar" \
   "${RUN_DIR}/data/workers" \
   "${RUN_DIR}/service-logs/auth" \
   "${RUN_DIR}/service-logs/drive" \
@@ -36,17 +38,22 @@ mkdir -p \
   "${RUN_DIR}/service-logs/sheets" \
   "${RUN_DIR}/service-logs/slides" \
   "${RUN_DIR}/service-logs/photos" \
+  "${RUN_DIR}/service-logs/notes" \
+  "${RUN_DIR}/service-logs/calendar" \
   "${RUN_DIR}/service-logs/workers" \
   "${RUN_DIR}/browser-logs" \
   "${RUN_DIR}/databases" \
-  "${RUN_DIR}/playwright-results"
+  "${RUN_DIR}/playwright-artifacts" \
+  "${RUN_DIR}/playwright-report"
 
-# Separate --skip-build from any playwright-specific args
+# Separate --skip-build / --report from any playwright-specific args
 BUILD_ARGS=()
 PW_ARGS=()
+SHOW_REPORT=false
 for arg in "$@"; do
   case "$arg" in
     --skip-build) BUILD_ARGS+=("$arg") ;;
+    --report) SHOW_REPORT=true ;;
     *) PW_ARGS+=("$arg") ;;
   esac
 done
@@ -56,18 +63,21 @@ done
 
 # Run Playwright (global-setup starts Docker, global-teardown stops it)
 cd "$REPO_ROOT"
-npx playwright test "${PW_ARGS[@]+"${PW_ARGS[@]}"}"
-
-EXIT_CODE=$?
+EXIT_CODE=0
+npx playwright test "${PW_ARGS[@]+"${PW_ARGS[@]}"}" || EXIT_CODE=$?
 
 echo ""
 echo "Run artifacts saved to: ${RUN_DIR}"
 echo "  Service logs : ${RUN_DIR}/service-logs/"
 echo "  Browser logs : ${RUN_DIR}/browser-logs/"
 echo "  Databases    : ${RUN_DIR}/databases/"
-echo "  PW results   : ${RUN_DIR}/playwright-results/"
-echo ""
-echo "To view the HTML report:"
-echo "  npx playwright show-report ${RUN_DIR}/playwright-results/html"
+echo "  PW artifacts : ${RUN_DIR}/playwright-artifacts/"
+echo "  PW report    : ${RUN_DIR}/playwright-report/"
+
+if [ "$SHOW_REPORT" = true ]; then
+  npx playwright show-report "${RUN_DIR}/playwright-report"
+fi
+
+
 
 exit $EXIT_CODE
