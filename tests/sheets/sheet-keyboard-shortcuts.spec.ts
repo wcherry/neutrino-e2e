@@ -112,7 +112,7 @@ test.describe('Sheets keyboard shortcuts', () => {
 
   // ── Guard: shortcut must not fire when an input has focus ────────────────────
 
-  test('Ctrl+B has no effect when formula bar is focused', async ({ page, request }) => {
+  test('Ctrl+B has no effect when the sheet title input is focused', async ({ page, request }) => {
     await registerAndLogin(request, page);
     await openNewSheet(page);
 
@@ -121,11 +121,11 @@ test.describe('Sheets keyboard shortcuts', () => {
     // Click cell A1 first so it is the active cell
     await page.locator('#A1').click();
 
-    // Focus the formula bar input (the text input inside the formula bar)
-    const formulaBar = page.locator('input[type="text"]').first();
-    await formulaBar.focus();
+    // Focus the sheet title input (a non-formula-bar text input)
+    const titleInput = page.getByTestId('worksheet.name');
+    await titleInput.click();
 
-    // Press Ctrl+B while the formula bar has focus — should be a no-op for cell style
+    // Press Ctrl+B while the title input has focus — should be a no-op for cell style
     await page.keyboard.press('Control+B');
 
     // The bold button must NOT have the active class
