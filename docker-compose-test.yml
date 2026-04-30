@@ -112,9 +112,11 @@ services:
     secrets:
       - jwt_secret
       - worker_secret
+      - anthropic_api_key
     environment:
       JWT_SECRET: /run/secrets/jwt_secret
       WORKER_SECRET: /run/secrets/worker_secret
+      ANTHROPIC_API_KEY: /run/secrets/anthropic_api_key
       JWT_ACCESS_EXPIRY_SECS: 900
       JWT_REFRESH_EXPIRY_SECS: 604800
       LOG_LEVEL: debug
