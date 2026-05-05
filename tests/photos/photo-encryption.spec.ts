@@ -86,10 +86,22 @@ test.describe('Photo E2EE encryption', () => {
     );
 
     await page.goto('/photos');
+    // Wait for the app to fully initialize — ensures currentUser is loaded in
+    // React Query so the upload mutation takes the E2EE path.
+    await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible({ timeout: 15_000 });
 
-    // Upload a minimal JPEG image via the hidden file input.
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles([
+    // Register the response listener BEFORE triggering the upload to avoid a
+    // race where a fast local stack completes the full upload chain before the
+    // listener is set up (waitForResponse only catches future responses).
+    const registerResPromise = page.waitForResponse(
+      (r) => r.url().includes('/api/v1/photos') && r.request().method() === 'POST',
+      { timeout: 30_000 },
+    );
+    const [fileChooser1] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Upload Photos', exact: true }).click(),
+    ]);
+    await fileChooser1.setFiles([
       {
         name: 'test-photo.jpg',
         mimeType: 'image/jpeg',
@@ -98,10 +110,7 @@ test.describe('Photo E2EE encryption', () => {
     ]);
 
     // Wait for the photo to be registered in the Photos service.
-    const registerRes = await page.waitForResponse(
-      (r) => r.url().includes('/api/v1/photos') && r.request().method() === 'POST',
-      { timeout: 30_000 },
-    );
+    const registerRes = await registerResPromise;
     expect(registerRes.ok(), `photo registration must succeed (got ${registerRes.status()})`).toBeTruthy();
 
     // Retrieve the photo record to get the backing drive file ID.
@@ -143,9 +152,17 @@ test.describe('Photo E2EE encryption', () => {
     );
 
     await page.goto('/photos');
+    await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible({ timeout: 15_000 });
 
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles([
+    const registerResPromise = page.waitForResponse(
+      (r) => r.url().includes('/api/v1/photos') && r.request().method() === 'POST',
+      { timeout: 30_000 },
+    );
+    const [fileChooser2] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Upload Photos', exact: true }).click(),
+    ]);
+    await fileChooser2.setFiles([
       {
         name: 'test-photo.jpg',
         mimeType: 'image/jpeg',
@@ -153,10 +170,7 @@ test.describe('Photo E2EE encryption', () => {
       },
     ]);
 
-    const registerRes = await page.waitForResponse(
-      (r) => r.url().includes('/api/v1/photos') && r.request().method() === 'POST',
-      { timeout: 30_000 },
-    );
+    const registerRes = await registerResPromise;
     expect(registerRes.ok()).toBeTruthy();
 
     const listRes = await request.get(`${BASE_URL}/api/v1/photos`, {
@@ -205,20 +219,24 @@ test.describe('Photo E2EE encryption', () => {
     );
 
     await page.goto('/photos');
+    await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible({ timeout: 15_000 });
 
-    const fileInput = page.locator('input[type="file"]').first();
-    await fileInput.setInputFiles([
+    const uploadDonePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/v1/photos') && r.request().method() === 'POST',
+      { timeout: 30_000 },
+    );
+    const [fileChooser3] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Upload Photos', exact: true }).click(),
+    ]);
+    await fileChooser3.setFiles([
       {
         name: 'test-photo.jpg',
         mimeType: 'image/jpeg',
         buffer: MINIMAL_JPEG,
       },
     ]);
-
-    await page.waitForResponse(
-      (r) => r.url().includes('/api/v1/photos') && r.request().method() === 'POST',
-      { timeout: 30_000 },
-    );
+    await uploadDonePromise;
 
     const listRes = await request.get(`${BASE_URL}/api/v1/photos`, {
       headers: { Authorization: `Bearer ${token}` },

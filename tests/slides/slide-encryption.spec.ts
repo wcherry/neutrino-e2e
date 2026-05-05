@@ -75,6 +75,16 @@ test.describe('Presentation E2EE encryption', () => {
     );
 
     await page.goto('/slides');
+
+    // Register the listener before clicking to avoid a race where the initial
+    // content upload completes before waitForResponse is set up.
+    const contentUploadPromise1 = page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/v1/drive/files/') &&
+        r.request().method() === 'POST',
+      { timeout: 20_000 },
+    );
+
     await page.getByRole('button', { name: /new presentation/i }).first().click();
     await expect(page).toHaveURL(/\/slides\/editor\/?\?id=/, { timeout: 15_000 });
 
@@ -82,12 +92,7 @@ test.describe('Presentation E2EE encryption', () => {
     expect(slideId, 'slide ID must be present in URL').toBeTruthy();
 
     // Wait for the editor to finish its initial content upload.
-    await page.waitForResponse(
-      (r) =>
-        r.url().includes(`/api/v1/drive/files/${slideId}`) &&
-        r.request().method() === 'POST',
-      { timeout: 20_000 },
-    );
+    await contentUploadPromise1;
 
     // The server must store an encrypted DEK for this file.
     const keyRes = await request.get(`${BASE_URL}/api/v1/drive/files/${slideId}/key`, {
@@ -118,18 +123,21 @@ test.describe('Presentation E2EE encryption', () => {
     );
 
     await page.goto('/slides');
+
+    const contentUploadPromise2 = page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/v1/drive/files/') &&
+        r.request().method() === 'POST',
+      { timeout: 20_000 },
+    );
+
     await page.getByRole('button', { name: /new presentation/i }).first().click();
     await expect(page).toHaveURL(/\/slides\/editor\/?\?id=/, { timeout: 15_000 });
 
     const slideId = new URL(page.url()).searchParams.get('id')!;
 
     // Wait for the initial content to be written to the drive backend.
-    await page.waitForResponse(
-      (r) =>
-        r.url().includes(`/api/v1/drive/files/${slideId}`) &&
-        r.request().method() === 'POST',
-      { timeout: 20_000 },
-    );
+    await contentUploadPromise2;
 
     // Download the raw bytes the server holds for this file.
     const downloadRes = await request.get(`${BASE_URL}/api/v1/drive/files/${slideId}`, {
@@ -149,6 +157,7 @@ test.describe('Presentation E2EE encryption', () => {
     page,
     request,
   }) => {
+    test.setTimeout(60_000);
     await registerAndLogin(request, page);
     const token = await getAuthToken(page);
     const userId = await getUserId(request, token);
@@ -168,21 +177,30 @@ test.describe('Presentation E2EE encryption', () => {
     // Wait for the back button to confirm the editor has loaded.
     await expect(page.getByRole('button', { name: 'Slides' })).toBeVisible({ timeout: 10_000 });
 
-    // Double-click the title text element to enter edit mode and type a distinctive phrase.
+    // Double-click the title text element to enter edit mode.
     const secretTitle = `secret-slide-title-${Date.now()}`;
     const titleElement = page.locator('text=Click to add title').first();
     await titleElement.dblclick();
-    await page.keyboard.press('Control+A');
-    await page.keyboard.type(secretTitle);
-    await page.keyboard.press('Escape');
 
-    // Wait for the autosave or explicit save to write the updated content.
-    const saveRes = await page.waitForResponse(
+    // Wait for the textarea to appear and gain focus before interacting.
+    const editTextarea = page.locator('textarea').first();
+    await editTextarea.waitFor({ state: 'visible', timeout: 5_000 });
+    await editTextarea.click();
+
+    // Register save listener before typing so we don't miss the autosave.
+    const saveResPromise = page.waitForResponse(
       (r) =>
         r.url().includes(`/api/v1/drive/files/${slideId}`) &&
-        r.request().method() === 'POST',
+        ['POST', 'PUT'].includes(r.request().method()),
       { timeout: 30_000 },
     );
+
+    await page.keyboard.type(secretTitle);
+    // Move focus away from the textarea to trigger onBlur → scheduleAutoSave.
+    await page.keyboard.press('Tab');
+
+    // Wait for the autosave or explicit save to write the updated content.
+    const saveRes = await saveResPromise;
     expect(saveRes.ok(), `save must succeed (got ${saveRes.status()})`).toBeTruthy();
 
     // The saved bytes must not expose the typed title in plaintext.

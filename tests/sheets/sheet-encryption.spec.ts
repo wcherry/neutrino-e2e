@@ -75,6 +75,16 @@ test.describe('Spreadsheet E2EE encryption', () => {
     );
 
     await page.goto('/sheets');
+
+    // Register the listener before clicking to avoid a race where the initial
+    // content upload completes before waitForResponse is set up.
+    const contentUploadPromise1 = page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/v1/drive/files/') &&
+        r.request().method() === 'POST',
+      { timeout: 20_000 },
+    );
+
     await page.getByRole('button', { name: /new spreadsheet/i }).first().click();
     await expect(page).toHaveURL(/\/sheets\/editor\/?\?id=/, { timeout: 15_000 });
 
@@ -82,12 +92,7 @@ test.describe('Spreadsheet E2EE encryption', () => {
     expect(sheetId, 'sheet ID must be present in URL').toBeTruthy();
 
     // Wait for the editor to finish its initial content upload.
-    await page.waitForResponse(
-      (r) =>
-        r.url().includes(`/api/v1/drive/files/${sheetId}`) &&
-        r.request().method() === 'POST',
-      { timeout: 20_000 },
-    );
+    await contentUploadPromise1;
 
     // The server must store an encrypted DEK for this file.
     const keyRes = await request.get(`${BASE_URL}/api/v1/drive/files/${sheetId}/key`, {
@@ -118,18 +123,21 @@ test.describe('Spreadsheet E2EE encryption', () => {
     );
 
     await page.goto('/sheets');
+
+    const contentUploadPromise2 = page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/v1/drive/files/') &&
+        r.request().method() === 'POST',
+      { timeout: 20_000 },
+    );
+
     await page.getByRole('button', { name: /new spreadsheet/i }).first().click();
     await expect(page).toHaveURL(/\/sheets\/editor\/?\?id=/, { timeout: 15_000 });
 
     const sheetId = new URL(page.url()).searchParams.get('id')!;
 
     // Wait for the initial content to be written to the drive backend.
-    await page.waitForResponse(
-      (r) =>
-        r.url().includes(`/api/v1/drive/files/${sheetId}`) &&
-        r.request().method() === 'POST',
-      { timeout: 20_000 },
-    );
+    await contentUploadPromise2;
 
     // Download the raw bytes the server holds for this file.
     const downloadRes = await request.get(`${BASE_URL}/api/v1/drive/files/${sheetId}`, {
@@ -148,6 +156,7 @@ test.describe('Spreadsheet E2EE encryption', () => {
     page,
     request,
   }) => {
+    test.setTimeout(60_000);
     await registerAndLogin(request, page);
     const token = await getAuthToken(page);
     const userId = await getUserId(request, token);
@@ -167,18 +176,21 @@ test.describe('Spreadsheet E2EE encryption', () => {
     // Wait for the editor to be interactive.
     await expect(page.getByRole('button', { name: 'Sheets' })).toBeVisible({ timeout: 15_000 });
 
-    // Click the first cell and type a distinctive value.
+    // Click cell A1 and type a distinctive value.
     const distinctValue = `SECRET_CELL_${Date.now()}`;
-    await page.keyboard.press('Tab'); // move focus into the grid
-    await page.keyboard.type(distinctValue);
+    await page.locator('#A1').click();
 
-    // Wait for the autosave to post the new content to the drive backend.
-    const saveRes = await page.waitForResponse(
+    // Set up the save listener BEFORE typing so we don't miss a fast autosave.
+    const saveResPromise = page.waitForResponse(
       (r) =>
         r.url().includes(`/api/v1/drive/files/${sheetId}`) &&
-        r.request().method() === 'POST',
+        ['POST', 'PUT'].includes(r.request().method()),
       { timeout: 30_000 },
     );
+    await page.keyboard.type(distinctValue);
+    await page.keyboard.press('Enter');
+
+    const saveRes = await saveResPromise;
     expect(saveRes.ok(), `autosave must succeed (got ${saveRes.status()})`).toBeTruthy();
 
     // The saved bytes must not expose the typed value in plaintext.

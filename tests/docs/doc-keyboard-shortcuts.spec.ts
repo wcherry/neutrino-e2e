@@ -48,8 +48,8 @@ test.describe('Docs keyboard shortcuts', () => {
 
     // Type some text and select it all
     await editor.click();
-    await editor.type('Hello world');
-    await page.keyboard.press('Control+A');
+    await editor.pressSequentially('Hello world');
+    await page.keyboard.press('Meta+A');
 
     // Handle the window.prompt dialog before pressing the shortcut
     page.once('dialog', (dialog) => dialog.accept('https://example.com'));
@@ -67,15 +67,15 @@ test.describe('Docs keyboard shortcuts', () => {
 
     // Type text, select it, and set a link
     await editor.click();
-    await editor.type('Hello world');
-    await page.keyboard.press('Control+A');
+    await editor.pressSequentially('Hello world');
+    await page.keyboard.press('Meta+A');
 
     page.once('dialog', (dialog) => dialog.accept('https://example.com'));
     await page.keyboard.press('Control+K');
     await expect(editor.locator('a')).toBeVisible({ timeout: 5_000 });
 
     // Now select the linked text and press Ctrl+K with an empty string to remove it
-    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Meta+A');
     page.once('dialog', (dialog) => dialog.accept(''));
     await page.keyboard.press('Control+K');
 
@@ -91,17 +91,17 @@ test.describe('Docs keyboard shortcuts', () => {
 
     const editor = page.locator('.ProseMirror');
 
-    // Type text and apply bold via Ctrl+B
+    // Type text and apply bold via Cmd+B
     await editor.click();
-    await editor.type('Bold text');
-    await page.keyboard.press('Control+A');
-    await page.keyboard.press('Control+B');
+    await editor.pressSequentially('Bold text');
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.press('Meta+B');
 
     // Confirm bold was applied
     await expect(editor.locator('strong')).toBeVisible({ timeout: 5_000 });
 
     // Clear formatting with Ctrl+\
-    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Meta+A');
     await page.keyboard.press('Control+\\');
 
     // Bold should be removed
@@ -114,17 +114,17 @@ test.describe('Docs keyboard shortcuts', () => {
 
     const editor = page.locator('.ProseMirror');
 
-    // Type text and apply italic via Ctrl+I
+    // Type text and apply italic via Cmd+I
     await editor.click();
-    await editor.type('Italic text');
-    await page.keyboard.press('Control+A');
-    await page.keyboard.press('Control+I');
+    await editor.pressSequentially('Italic text');
+    await page.keyboard.press('Meta+A');
+    await page.keyboard.press('Meta+I');
 
     // Confirm italic was applied
     await expect(editor.locator('em')).toBeVisible({ timeout: 5_000 });
 
     // Clear formatting with Ctrl+\
-    await page.keyboard.press('Control+A');
+    await page.keyboard.press('Meta+A');
     await page.keyboard.press('Control+\\');
 
     // Italic should be removed

@@ -192,10 +192,11 @@ test.describe('Document E2EE encryption', () => {
     await editor.click();
 
     // Register autosave listener before typing to avoid race with debounce flush.
+    // Autosave sends PUT to /autosave; manual save sends POST to /versions.
     const saveResPromise = page.waitForResponse(
       (r) =>
         r.url().includes(`/api/v1/drive/files/${docId}`) &&
-        r.request().method() === 'POST',
+        ['POST', 'PUT'].includes(r.request().method()),
       { timeout: 30_000 },
     );
 

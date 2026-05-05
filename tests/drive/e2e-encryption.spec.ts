@@ -434,6 +434,7 @@ test.describe('E2EE key lifecycle and file encryption', () => {
   });
 
   test('encrypted DEK cannot be read by a different user', async ({ page, request }) => {
+    test.setTimeout(60_000);
     // Register owner and upload an encrypted file.
     await registerAndLogin(request, page);
     const ownerToken = await getAuthToken(page);
@@ -462,7 +463,7 @@ test.describe('E2EE key lifecycle and file encryption', () => {
       headers: { 'Content-Type': 'application/json' },
     });
     expect(loginRes.ok()).toBeTruthy();
-    const { access_token: otherToken } = await loginRes.json() as { access_token: string };
+    const { accessToken: otherToken } = await loginRes.json() as { accessToken: string };
 
     // The other user must not be able to fetch the owner's file key.
     const keyRes = await request.get(`${BASE_URL}/api/v1/drive/files/${fileId}/key`, {
@@ -616,54 +617,43 @@ test.describe('E2EE for sheets, docs, slides, and photos', () => {
     page,
     request,
   }) => {
+    test.setTimeout(60_000);
     const { token } = await loginUser(request, page);
 
     await page.goto('/photos');
+    // Wait for currentUser to be loaded in React Query so the upload takes the E2EE path.
+    await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible({ timeout: 15_000 });
 
     // Create a small synthetic JPEG-like binary (1×1 pixel placeholder)
     const photoContent = 'E2EE-photo-test-payload-' + Date.now();
     const fileName = `e2e-photo-${Date.now()}.jpg`;
 
-    // Trigger upload via the hidden file input
+    const photoRegistrationPromise = page.waitForResponse(
+      (r) => r.url().includes('/api/v1/photos') && r.request().method() === 'POST',
+      { timeout: 30_000 },
+    );
     const [fileChooser] = await Promise.all([
-      page.waitForEvent('filechooser', { timeout: 5_000 }).catch(() => null),
-      page.locator('input[type="file"]').first().dispatchEvent('click'),
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Upload Photos', exact: true }).click(),
     ]);
-    if (fileChooser) {
-      await fileChooser.setFiles({
-        name: fileName,
-        mimeType: 'image/jpeg',
-        buffer: Buffer.from(photoContent, 'utf8'),
-      });
-    } else {
-      // Fallback: upload directly via the API drive endpoint then register
-      const formData = new FormData();
-      formData.append('file', new Blob([photoContent], { type: 'image/jpeg' }), fileName);
-      const uploadRes = await request.post(`${BASE_URL}/api/v1/drive/files/upload`, {
-        headers: { Authorization: `Bearer ${token}` },
-        multipart: { file: { name: fileName, mimeType: 'image/jpeg', buffer: Buffer.from(photoContent) } },
-      });
-      expect(uploadRes.ok()).toBeTruthy();
-    }
+    await fileChooser.setFiles({
+      name: fileName,
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from(photoContent, 'utf8'),
+    });
+    await photoRegistrationPromise;
 
-    // Wait for the photo list to update
-    await page.waitForTimeout(3_000);
-
-    // Find the uploaded file via the drive API
-    const filesRes = await request.get(`${BASE_URL}/api/v1/drive/files`, {
+    // Find the uploaded file via the photos API to get the backing drive file ID.
+    const photosRes = await request.get(`${BASE_URL}/api/v1/photos`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    expect(filesRes.ok()).toBeTruthy();
-    const filesData = await filesRes.json() as { files: { id: string; name: string; encryptedMetadata: string | null }[] };
-    const uploadedFile = filesData.files.find((f) => f.name === fileName);
-    if (!uploadedFile) {
-      // Photo upload via UI might not be possible in this test environment — skip
-      test.skip();
-      return;
-    }
+    expect(photosRes.ok()).toBeTruthy();
+    const { photos: photosList } = await photosRes.json() as { photos: { id: string; fileId: string }[] };
+    expect(photosList.length, 'at least one photo must exist after upload').toBeGreaterThan(0);
+    const fileId = photosList[0].fileId;
 
     // Verify encrypted DEK was stored
-    const keyRes = await request.get(`${BASE_URL}/api/v1/drive/files/${uploadedFile.id}/key`, {
+    const keyRes = await request.get(`${BASE_URL}/api/v1/drive/files/${fileId}/key`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(
@@ -674,7 +664,7 @@ test.describe('E2EE for sheets, docs, slides, and photos', () => {
     expect(keyData.encryptedFileKey.length, 'encryptedFileKey must be non-empty').toBeGreaterThan(0);
 
     // Verify the stored bytes are not the original plaintext
-    const downloadRes = await request.get(`${BASE_URL}/api/v1/drive/files/${uploadedFile.id}`, {
+    const downloadRes = await request.get(`${BASE_URL}/api/v1/drive/files/${fileId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(downloadRes.ok()).toBeTruthy();

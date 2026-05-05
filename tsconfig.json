@@ -9,7 +9,7 @@
     "resolveJsonModule": true,
     "types": ["node"],
     "outDir": "./dist",
-    "rootDir": "./"
+    "rootDir": "../"
   },
   "include": [
     "*.ts",

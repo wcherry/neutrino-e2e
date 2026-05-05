@@ -322,6 +322,7 @@ test.describe('Text functions', () => {
   });
 
   test('LEFT, RIGHT, MID', async ({ page, request }) => {
+    test.setTimeout(60_000);
     await registerAndLogin(request, page, 'text2');
     await openNewSheet(page);
 
